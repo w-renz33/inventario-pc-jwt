@@ -6,10 +6,10 @@ interface ProtectedRouteProps {
   readonly children: ReactNode;
 }
 
-/** Guarda: sin sesion (/api/auth/me 401) -> /login. */
+/** Guarda: sin token valido (/api/auth/me 401) -> /login. */
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const { user, cargando } = useAuth();
-  if (cargando) return <p className="p-margin text-body-md">Verificando sesion…</p>;
+  if (cargando) return <p className="p-margin text-body-md">Verificando token…</p>;
   if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }

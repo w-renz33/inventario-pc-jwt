@@ -1,23 +1,28 @@
 package com.sistema.inventario.config;
 
+import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.License;
+import io.swagger.v3.oas.models.security.SecurityRequirement;
+import io.swagger.v3.oas.models.security.SecurityScheme;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
  * Documentacion de la API en /swagger-ui.html.
  *
- * <p>La autenticacion es por SESION de servidor (JSESSIONID HttpOnly), no por
- * token: por eso no se declara ningun esquema de seguridad en OpenAPI. El boton
- * "Authorize" de Swagger UI no aplica aqui. Para probar a mano en Postman se
- * envia POST /api/auth/login con las credenciales y Postman guarda la cookie
- * sola en las siguientes peticiones.
+ * <p>La autenticacion es por JWT, asi que se declara un SecurityScheme de tipo
+ * HTTP Bearer: eso enciende el boton "Authorize" de Swagger UI, donde se pega el
+ * token (sin la palabra "Bearer") y todas las peticiones lo anaden en la
+ * cabecera Authorization. El unico endpoint sin token es POST /api/auth/login.
  */
 @Configuration
 public class OpenApiConfig {
+
+    /** Nombre del esquema, el mismo con el que se pide el token en /authorize. */
+    private static final String ESQUEMA = "bearerAuth";
 
     @Bean
     public OpenAPI customOpenAPI() {
@@ -26,11 +31,15 @@ public class OpenApiConfig {
                         .title("Sistema de Inventario API")
                         .version("1.0")
                         .description("""
-                                API de inventario de componentes PC con autenticacion por sesion.
+                                API de inventario de componentes PC con autenticacion por JWT.
 
-                                Autenticacion: POST /api/auth/login devuelve una sesion (cookie JSESSIONID).
-                                El cliente debe reenviar esa cookie en cada peticion posterior; el frontend
-                                lo hace con withCredentials. GET /api/auth/me confirma la sesion.
+                                Como probarla: 1) POST /api/auth/login con usuario y contrasena; la
+                                respuesta incluye el campo "token". 2) Pegar ese token (solo el texto,
+                                sin la palabra Bearer) en el boton "Authorize" de Swagger UI.
+                                3) El resto de endpoints ya viaja con la cabecera Authorization.
+
+                                El frontend hace lo mismo: guarda el token y lo reenvia en cada
+                                peticion. GET /api/auth/me confirma que el token sigue vigente.
 
                                 Autorizacion por rol: ADMIN, JEFE_ALMACEN y AUXILIAR_ALMACEN. Cada rol tiene
                                 un subconjunto de permisos recurso.accion; el detalle esta en
@@ -40,6 +49,12 @@ public class OpenApiConfig {
                                 .email("soporte@inventario.com"))
                         .license(new License()
                                 .name("Apache 2.0")
-                                .url("http://springdoc.org")));
+                                .url("http://springdoc.org")))
+                .components(new Components().addSecuritySchemes(ESQUEMA, new SecurityScheme()
+                        .type(SecurityScheme.Type.HTTP)
+                        .scheme("bearer")
+                        .bearerFormat("JWT")
+                        .description("Token devuelto por POST /api/auth/login")))
+                .addSecurityItem(new SecurityRequirement().addList(ESQUEMA));
     }
 }

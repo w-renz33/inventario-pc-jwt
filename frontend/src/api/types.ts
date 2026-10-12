@@ -32,6 +32,8 @@ export interface LoginResponse {
   username: string;
   roles: string[];
   permisos: string[];
+  /** JWT firmado; se manda en "Authorization: Bearer <token>". */
+  token: string;
 }
 
 /** com.sistema.inventario.common.Pagina<T> */

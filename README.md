@@ -120,6 +120,10 @@ Los tres usuarios y sus roles los crea `DataSeeder` en cada arranque.
 Es idempotente: no duplica nada y no pisa los datos ya sembrados. Las
 categorías no se siembran, se crean desde la pantalla de Productos.
 
+No hay registro ni recuperación de contraseña: las cuentas son las del
+`DataSeeder`. Al entrar, el backend devuelve un token JWT y el frontend lo
+guarda solo en el navegador (no hay que copiar nada a mano).
+
 ## 6. Comprueba que todo funciona (2 minutos)
 
 1. Entra con `admin` / `admin123` → debes ver el **Panel general** con cifras.
@@ -144,19 +148,63 @@ Pulsa `Ctrl + C` en cada una de las dos terminales.
 | `Port 8080 is already in use` | El backend ya está corriendo en otra ventana. Ciérrala. |
 | `Port 5173 is already in use` | El frontend ya está corriendo en otra ventana. Ciérrala. |
 | `pnpm no se reconoce` | Ejecuta `corepack enable` y reabre la terminal. |
-| El login rebota o dice sesión expirada | Vuelve a entrar con usuario y clave. Entra siempre por http://localhost:5173 |
+| El login rebota o dice sesión expirada | Vuelve a entrar con usuario y clave. El token es válido 24 h; si lo alteraste a mano, entra otra vez. Entra siempre por http://localhost:5173 |
 | `java no se reconoce` o versión distinta de 21 | Reinstala el JDK 21 y verifica con `java -version`. |
 
 ## 9. Notas (para cuando quieras saber más)
 
 - Comandos del frontend: `pnpm run dev` (usar), `pnpm run build` (probar que compila).
-- El login funciona con sesiones del servidor; no hay que copiar ningún token.
+- La autenticación es por **JWT** (sin sesiones de servidor, sin `JSESSIONID`).
+  `POST /api/auth/login` devuelve un token y el frontend lo manda en cada
+  petición como `Authorization: Bearer <token>`.
+- El token viaja en `localStorage` bajo la clave `inventario_token`. Se puede ver
+  y hasta alterar desde la consola del navegador; alterarlo es la forma rápida de
+  comprobar qué pasa (ver más abajo).
+- Un JWT no se puede "revocar" en el servidor: por eso **Salir** solo borra el
+  token del navegador. Si alguien copiara el token, seguiría valiendo hasta que
+  expire (24 h). En un sistema real se resolvería con refresh tokens o una lista
+  de revocación.
 - Los errores de negocio (stock insuficiente, documento duplicado, etc.) aparecen
   como mensajes en pantalla: léelos, dicen la causa.
 - Documentación interactiva de la API (Swagger UI): http://localhost:8080/swagger-ui.html
+  Para probarla: entra con `POST /api/auth/login`, copia el campo `token` de la
+  respuesta y pégalo en el botón **Authorize** (solo el texto, sin la palabra
+  `Bearer`). El único endpoint que no necesita token es el login.
+- Para ver qué lleva dentro un token, pega el texto en https://jwt.io: se ve el
+  payload en claro (el JWT va codificado en base64, no cifrado). Lo que no se
+  puede es modificarlo, porque la firma dejaría de coincidir.
 - Dar de baja un producto no lo borra: pasa a estado `DESCONTINUADO` y sigue
   visible en el catálogo con su historial de kardex intacto. Es a propósito, para
   no romper la trazabilidad de los ingresos y movimientos que lo referencian.
+
+### 9.1 Cómo está armado el JWT (para estudiarlo)
+
+| Pieza | Dónde | Qué hace |
+|---|---|---|
+| Dependencia | `backend/pom.xml` | `jjwt-api` compila; `jjwt-impl` y `jjwt-jackson` firman en runtime |
+| Llave y claims | `backend/.../security/JwtService.java` | Firma el token (HMAC-SHA256) y lo valida |
+| Filtro | `backend/.../security/JwtAuthenticationFilter.java` | Lee el header en cada petición y autentica |
+| Reglas | `backend/.../config/SecurityConfig.java` | `STATELESS`, filtro registrado, 401 vs 403 |
+| Envío | `frontend/src/api/client.ts` | Interceptor que añade el header |
+| Guardado | `frontend/src/api/tokenStore.ts` | `localStorage` |
+
+Flujo completo de una petición: el interceptor pone el header → el filtro
+valida la firma y la fecha de expiración → arma el `SecurityContext` con los
+permisos que venían en el token → `SecurityConfig` y los `@PreAuthorize`
+deciden si pasa. **401** = sin token, vencido o manipulado; **403** = token
+válido pero sin permiso.
+
+Prueba rápida de los dos casos, con el backend levantado:
+
+```bat
+REM 401: token manipulado (cambia una letra del final)
+curl -H "Authorization: Bearer <token malo>" http://localhost:8080/api/auth/me
+
+REM 403: entra con inventario/inv123 y PATCH a un producto
+curl -X PATCH -H "Authorization: Bearer <token de auxiliar>" ^
+  -H "Content-Type: application/json" -d "{\"nombre\":\"X\"}" ^
+  http://localhost:8080/api/inventario/productos/1
+```
 
 ## 10. Pantallas del sistema
 

@@ -1,16 +1,26 @@
 import axios from 'axios';
+import { leerToken, limpiarToken } from './tokenStore';
 
-/** Cliente unico. Auth por SESIONES (JSESSIONID HttpOnly):
- *  withCredentials:true es obligatorio o el backend responde 401. */
+/** Cliente unico. Auth por JWT: sin cookies ni withCredentials.
+ *  El interceptor de peticion mete "Authorization: Bearer <token>" en cada
+ *  llamada si hay token guardado. */
 export const api = axios.create({
   baseURL: 'http://localhost:8080',
-  withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
 });
 
-/** Sesion expirada/invalida -> volver al login.
- *  El back responde 401 o 403 sin sesion; el 403 tambien significa
- *  "sin permiso", asi que solo redirige en /me o 401. */
+/** Anade el token a la peticion. El backend lo lee en JwtAuthenticationFilter. */
+api.interceptors.request.use((config) => {
+  const token = leerToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+/** Token vencido, invalido o manipulado -> borrar y volver al login.
+ *  El back responde 401 cuando el JWT no pasa la validacion; el 403 tambien
+ *  significa "sin permiso", asi que solo redirige en /me o 401. */
 api.interceptors.response.use(
   (res) => res,
   (err) => {
@@ -18,6 +28,7 @@ api.interceptors.response.use(
     const sinSesion =
       err.response?.status === 401 || (err.response?.status === 403 && url.includes('/api/auth/me'));
     if (sinSesion && window.location.pathname !== '/login') {
+      limpiarToken();
       window.location.href = '/login?expirada=1';
     }
     return Promise.reject(err);

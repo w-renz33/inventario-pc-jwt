@@ -14,4 +14,6 @@ public class LoginResponse {
     private String username;
     private List<String> roles;
     private List<String> permisos;
+    /** JWT firmado que el cliente manda en "Authorization: Bearer <token>". */
+    private String token;
 }
