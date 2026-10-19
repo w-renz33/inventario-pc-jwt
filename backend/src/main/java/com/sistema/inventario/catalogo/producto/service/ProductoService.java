@@ -18,10 +18,13 @@ import com.sistema.inventario.catalogo.categoria.repository.CategoriaRepository;
 import com.sistema.inventario.movimiento.repository.MovimientoStockDao;
 import com.sistema.inventario.catalogo.producto.repository.ProductoDao;
 import com.sistema.inventario.security.SecurityUtils;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 @Service
@@ -63,6 +66,22 @@ public class ProductoService {
         Producto producto = productoDao.findById(id)
                 .orElseThrow(() -> new RuntimeException("Producto no encontrado"));
         return converToDTO(producto);
+    }
+
+
+     // Busqueda por nombre o SKU para el modal de consulta. El limite se acota
+     // a 50 para que la respuesta siga siendo de picker y no un listado.
+
+    public List<ProductoDTO> buscar(String q, int limit) {
+        String texto = q == null ? "" : q.trim().toLowerCase(Locale.ROOT);
+        if (texto.length() < 2) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "El texto de busqueda debe tener al menos 2 caracteres");
+        }
+        int limite = Math.min(Math.max(limit, 1), 50);
+        return productoDao.buscarPorNombreOSku(texto, limite).stream()
+                .map(this::converToDTO)
+                .collect(Collectors.toList());
     }
 
     @Transactional

@@ -12,6 +12,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/inventario")
 public class ProductoController {
@@ -38,6 +40,20 @@ public class ProductoController {
         return ResponseEntity.ok(productoService.findPaged(
                 page, size, Paginacion.parsearCategoriaId(categoriaId)));
     }
+
+    /**
+      * Busqueda puntual para pickers y consultas rapidas. No reemplaza al
+      * listado paginado: es un contrato aparte, con limite propio.
+      */
+    @GetMapping("/productos/buscar")
+    public ResponseEntity<List<ProductoDTO>> buscar(
+            @RequestParam String q,
+            @RequestParam(defaultValue = "10") int limit) {
+
+        return ResponseEntity.ok(productoService.buscar(q, limit));
+    }
+
+
 
     @GetMapping("/productos/{id}")
     public ResponseEntity<ProductoDTO> getById(@PathVariable Long id) {
